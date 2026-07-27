@@ -385,9 +385,28 @@ function AnalyzePage() {
         </h1>
         <p className="mt-2 mb-0 max-w-2xl text-sm text-[var(--sea-ink-soft)] sm:text-base">
           上传持仓截图后开始分析。
-          {quota
-            ? ` 内测剩余 ${quota.remaining}/${quota.quotaLimit} 次。`
-            : ''}{' '}
+          {quota ? (
+            <>
+              {' '}
+              {quota.unlimited ? (
+                <span>管理员账号不限分析次数。</span>
+              ) : (
+                <>
+                  内测剩余{' '}
+                  <span
+                    className={
+                      quota.remaining <= 3
+                        ? 'font-semibold text-rose-600 dark:text-rose-400'
+                        : undefined
+                    }
+                  >
+                    {quota.remaining}/{quota.quotaLimit} 次
+                  </span>
+                  。
+                </>
+              )}
+            </>
+          ) : null}{' '}
           内容仅供参考，不构成投资建议。
         </p>
       </header>

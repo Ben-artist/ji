@@ -56,14 +56,28 @@ export default function Header() {
           ) : null}
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <div className="ml-auto flex max-w-full items-center gap-1.5 sm:gap-2">
           {ready && user ? (
             <>
               {quota ? (
-                <span className="hidden text-xs text-[var(--sea-ink-soft)] sm:inline">
-                  剩余 {quota.remaining}/{quota.quotaLimit} 次
+                <span
+                  className={`hidden text-xs sm:inline ${
+                    !quota.unlimited && quota.remaining <= 3
+                      ? 'font-semibold text-rose-600 dark:text-rose-400'
+                      : 'text-[var(--sea-ink-soft)]'
+                  }`}
+                >
+                  {quota.unlimited
+                    ? '管理员 · 不限次数'
+                    : `剩余 ${quota.remaining}/${quota.quotaLimit} 次`}
                 </span>
               ) : null}
+              <span
+                className="hidden max-w-[10rem] truncate text-xs text-[var(--sea-ink-soft)] md:inline"
+                title={user.email ?? undefined}
+              >
+                {user.email}
+              </span>
               <Button
                 type="button"
                 variant="ghost"

@@ -75,6 +75,8 @@ export interface ProfileQuota {
   quotaLimit: number
   quotaUsed: number
   remaining: number
+  /** ADMIN_EMAILS 内账号：不扣额度、不限次数 */
+  unlimited: boolean
 }
 
 /**
@@ -86,6 +88,8 @@ export async function getProfileQuota(
   accessToken: string,
 ): Promise<ProfileQuota> {
   const user = await requireUser(accessToken)
+  const email = (user.email || '').toLowerCase()
+  const unlimited = email.length > 0 && getAdminEmails().has(email)
   const admin = createServiceSupabase()
   const { data, error } = await admin
     .from('profiles')
@@ -100,15 +104,18 @@ export async function getProfileQuota(
     inviteCode: data.invite_code,
     quotaLimit: data.quota_limit,
     quotaUsed: data.quota_used,
-    remaining: Math.max(0, data.quota_limit - data.quota_used),
+    remaining: unlimited
+      ? data.quota_limit
+      : Math.max(0, data.quota_limit - data.quota_used),
+    unlimited,
   }
 }
 
 /**
- * 扣减配额。管理员可无邀请码；普通用户须已绑定。
+ * 扣减配额。管理员免绑码且不扣次；普通用户须已绑定且有剩余额度。
  * @param accessToken JWT
  * @param amount 次数
- * @returns 剩余次数
+ * @returns 剩余次数（管理员为 Infinity）
  * @throws 额度不足或未绑定邀请码
  */
 export async function consumeQuota(
@@ -132,6 +139,11 @@ export async function consumeQuota(
 
   if (!profile.invite_code && !isAdmin) {
     throw new Error('请先完成邀请码绑定')
+  }
+
+  // 管理员不限次数、不写入 quota_used
+  if (isAdmin) {
+    return profile.quota_limit
   }
 
   if (profile.quota_used + amount > profile.quota_limit) {

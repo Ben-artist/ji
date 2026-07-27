@@ -21,6 +21,7 @@ export interface QuotaInfo {
   quotaLimit: number
   quotaUsed: number
   remaining: number
+  unlimited: boolean
 }
 
 interface AuthContextValue {
@@ -138,6 +139,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     void completeInviteIfNeeded()
   }, [ready, session?.access_token, completeInviteIfNeeded])
+
+  // 从表里改配额后，切回页面/聚焦窗口时重新拉取，避免一直显示旧次数
+  useEffect(() => {
+    if (!ready || !session?.access_token) return
+    const onFocus = () => {
+      void refreshQuota()
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onFocus()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [ready, session?.access_token, refreshQuota])
 
   const value = useMemo<AuthContextValue>(
     () => ({
