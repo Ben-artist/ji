@@ -75,10 +75,29 @@ jobs:
           envs: DEPLOY_PATH
           script: |
             set -euo pipefail
+            REPO_URL="https://github.com/Ben-artist/ji.git"
+            mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
+
+            if [ ! -d .git ]; then
+              echo "==> not a git repo, initializing from GitHub"
+              git init
+              git remote add origin "$REPO_URL"
+              git fetch origin main
+              # -f 覆盖已有代码文件；未跟踪的 .env 会保留
+              git checkout -f -B main origin/main
+            fi
+
             echo "==> git pull"
+            git remote set-url origin "$REPO_URL"
             git fetch origin main
             git reset --hard origin/main
+
+            if [ ! -f .env ]; then
+              echo "ERROR: missing $DEPLOY_PATH/.env (VITE_* and runtime secrets)"
+              exit 1
+            fi
+
             echo "==> docker compose build & up"
             docker compose up -d --build
             echo "==> prune"
