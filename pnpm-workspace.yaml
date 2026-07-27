@@ -1,4 +1,0 @@
-allowBuilds:
-  '@alicloud/openapi-core': true
-  esbuild: true
-  lightningcss: true
