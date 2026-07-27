@@ -12,6 +12,13 @@ import {
 import { SuggestionsChat } from '#/components/portfolio/SuggestionsChat'
 import { UploadPanel } from '#/components/portfolio/UploadPanel'
 import { Button } from '#/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import {
@@ -24,6 +31,30 @@ import type { ChatMessage, Holding, PortfolioAnalysis } from '#/lib/portfolio/ty
 export const Route = createFileRoute('/')({
   component: AnalyzePage,
 })
+
+/**
+ * 从服务端/客户端错误中取出可读文案。
+ * @param err 未知错误
+ * @param fallback 默认文案
+ * @returns 用户可见消息
+ */
+function getErrorMessage(err: unknown, fallback = '操作失败，请稍后重试'): string {
+  if (!err) return fallback
+  if (typeof err === 'string' && err.trim()) return err.trim()
+  if (err instanceof Error && err.message.trim()) {
+    const m = err.message.trim()
+    const quoted = m.match(/message["']?\s*[:=]\s*["']([^"']+)["']/)
+    if (quoted?.[1]) return quoted[1]
+    return m
+  }
+  if (typeof err === 'object' && err !== null) {
+    const o = err as Record<string, unknown>
+    if (typeof o.message === 'string' && o.message.trim()) return o.message.trim()
+    if (o.data !== undefined) return getErrorMessage(o.data, fallback)
+    if (o.error !== undefined) return getErrorMessage(o.error, fallback)
+  }
+  return fallback
+}
 
 function AnalyzePage() {
   const queryClient = useQueryClient()
@@ -41,6 +72,7 @@ function AnalyzePage() {
   const [aiAnalyzing, setAiAnalyzing] = useState(false)
   const [chatSending, setChatSending] = useState(false)
   const [chatThinking, setChatThinking] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [lastImport, setLastImport] = useState<{
     recognizedCount: number
     successRate: number
@@ -68,6 +100,7 @@ function AnalyzePage() {
       })
     },
     onMutate: () => {
+      setActionError(null)
       setAiAnalyzing(true)
     },
     onSuccess: (data) => {
@@ -81,6 +114,10 @@ function AnalyzePage() {
       )
       void refreshQuota()
     },
+    onError: (err) => {
+      setActionError(getErrorMessage(err, '重新分析失败'))
+      void refreshQuota()
+    },
     onSettled: () => {
       setAiAnalyzing(false)
     },
@@ -90,6 +127,9 @@ function AnalyzePage() {
     mutationFn: (images: string[]) => {
       if (!accessToken) throw new Error('请先登录')
       return recognizePortfolioImages({ data: { accessToken, images } })
+    },
+    onMutate: () => {
+      setActionError(null)
     },
     onSuccess: async (result) => {
       setLastImport({
@@ -102,6 +142,7 @@ function AnalyzePage() {
         setHoldings([])
         setAnalysis(null)
         setAiAnalyzing(false)
+        setActionError('未能识别到基金持仓，请换更清晰的截图后重试')
         return
       }
       setHasUploaded(true)
@@ -123,9 +164,16 @@ function AnalyzePage() {
         setHoldings(data.holdings)
         setSelectedSector(data.sectorDetails[0]?.sector ?? null)
         void refreshQuota()
+      } catch (err) {
+        setActionError(getErrorMessage(err, 'AI 分析失败'))
+        void refreshQuota()
       } finally {
         setAiAnalyzing(false)
       }
+    },
+    onError: (err) => {
+      setActionError(getErrorMessage(err, '识别失败'))
+      void refreshQuota()
     },
   })
 
@@ -349,7 +397,34 @@ function AnalyzePage() {
         isImporting={recognizeMutation.isPending}
         isAnalyzing={aiAnalyzing}
         lastImport={lastImport}
+        error={actionError}
       />
+
+      <Dialog
+        open={Boolean(actionError)}
+        onOpenChange={(open) => {
+          if (!open) setActionError(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>无法完成操作</DialogTitle>
+          </DialogHeader>
+          <p className="m-0 text-sm leading-relaxed text-[var(--sea-ink)]">
+            {actionError}
+          </p>
+          {actionError?.includes('额度') && quota ? (
+            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">
+              当前剩余 {quota.remaining}/{quota.quotaLimit} 次。额度用完后需更换邀请码或联系管理员增加次数。
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" onClick={() => setActionError(null)}>
+              知道了
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {showAiLoading ? <ScoreOverviewLoading /> : null}
 

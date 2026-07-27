@@ -8,6 +8,7 @@ interface UploadPanelProps {
   onRecognize: (images: string[]) => void
   isImporting: boolean
   isAnalyzing?: boolean
+  error?: string | null
   lastImport?: {
     recognizedCount: number
     successRate: number
@@ -35,6 +36,7 @@ export function UploadPanel({
   onRecognize,
   isImporting,
   isAnalyzing = false,
+  error = null,
   lastImport,
 }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -127,6 +129,15 @@ export function UploadPanel({
           </button>
         ) : null}
       </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="mt-4 rounded-xl border border-rose-300/70 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200"
+        >
+          {error}
+        </div>
+      ) : null}
 
       {lastImport ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--line)] px-3 py-2 text-sm">
