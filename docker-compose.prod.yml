@@ -1,0 +1,15 @@
+# 服务器用：拉取 GHCR 预构建镜像（流水线推送后部署）
+# 用法：docker compose -f docker-compose.prod.yml up -d
+services:
+  jijin:
+    image: ghcr.io/ben-artist/jijin:latest
+    container_name: jijin
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"

@@ -1,0 +1,14 @@
+# 部署时不要把本地 .env / 构建产物打进镜像上下文
+.env
+.env.*
+!.env.example
+node_modules
+dist
+.output
+.git
+.DS_Store
+.cursor
+.agents
+.vscode
+*.log
+coverage

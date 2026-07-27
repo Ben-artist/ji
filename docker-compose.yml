@@ -1,0 +1,23 @@
+services:
+  jijin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 构建期注入（会打进浏览器包）；改完需重新 build
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    image: jijin:latest
+    container_name: jijin
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+    # 可选：仅本机访问，前面再挂 Nginx / 阿里云 SLB
+    # ports:
+    #   - "127.0.0.1:3000:3000"
