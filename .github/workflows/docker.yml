@@ -61,6 +61,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_ECS_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
+      # Docker 镜像名必须全小写；github.repository_owner 可能含大写（如 Ben-artist）
+      - name: Set lowercase image
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/jijin:latest" >> "$GITHUB_OUTPUT"
+
       - name: SSH deploy on ECS
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -77,5 +82,5 @@ jobs:
             docker image prune -f
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE: ghcr.io/${{ github.repository_owner }}/jijin:latest
+          IMAGE: ${{ steps.image.outputs.name }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
