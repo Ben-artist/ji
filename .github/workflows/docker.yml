@@ -60,6 +60,9 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_ECS_DEPLOY == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       # Docker 镜像名必须全小写；github.repository_owner 可能含大写（如 Ben-artist）
       - name: Set lowercase image
@@ -72,14 +75,21 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # ECS 公网带宽较小，首次 pull 镜像可能超过默认 10m
+          command_timeout: 30m
           envs: GHCR_TOKEN,IMAGE,DEPLOY_PATH
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH"
+            echo "==> login ghcr.io"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u github --password-stdin
+            echo "==> pull $IMAGE"
             docker pull "$IMAGE"
+            echo "==> compose up"
             docker compose -f docker-compose.prod.yml up -d
+            echo "==> prune"
             docker image prune -f
+            echo "==> done"
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE: ${{ steps.image.outputs.name }}
