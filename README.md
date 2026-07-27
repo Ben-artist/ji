@@ -113,6 +113,8 @@ docker compose up -d --build
 | `DEPLOY_SSH_KEY` | 私钥全文 |
 | `DEPLOY_PATH` | 服务器项目目录，如 `/opt/jijin` |
 
+若要流水线自动 SSH 部署，再在 **Settings → Variables** 增加：`ENABLE_ECS_DEPLOY=true`。
+
 服务器首次准备：
 
 ```bash

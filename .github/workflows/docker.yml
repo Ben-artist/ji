@@ -55,12 +55,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # 默认不跑；在仓库 Settings → Variables 设 ENABLE_ECS_DEPLOY=true 并配置 DEPLOY_* Secrets 后才会部署
   deploy:
     needs: build
-    if: >
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
-      secrets.DEPLOY_HOST != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_ECS_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: SSH deploy on ECS
