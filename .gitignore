@@ -1,15 +1,51 @@
-node_modules
-.DS_Store
-dist
-dist-ssr
-*.local
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 环境变量 / 密钥（保留示例）
 .env
-.nitro
-.tanstack
-.wrangler
-.output
-.vinxi
+.env.*
+!.env.example
+
+# 构建产物
+dist/
+dist-ssr/
+.output/
+.nitro/
+.vinxi/
+.wrangler/
+.tanstack/
 __unconfig*
-todos.json
-.cursor
+
+# 日志与缓存
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+coverage/
+*.tsbuildinfo
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.cursor/
+*.swp
+*.swo
+
+# 本地杂项
+*.local
+todos.json
+*.pem
+*.key
+!*.pub
+
+# 测试 / 临时
+tmp/
+temp/
+.temp/
