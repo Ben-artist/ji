@@ -100,7 +100,7 @@ docker compose up -d --build
 
 ### GitHub Actions 流水线
 
-仓库已配置 `.github/workflows/docker.yml`：推送到 `main` 会构建镜像并推到 `ghcr.io/ben-artist/jijin`。
+仓库已配置 `.github/workflows/docker.yml`：推送到 `main` 会在 GitHub 构建并推到 GHCR（CI 校验）；若开启自动部署，会 **SSH 到 ECS 上 `git pull` + `docker compose build`**，不再从 ghcr 拉镜像。
 
 在 GitHub → **Settings → Secrets and variables → Actions** 添加：
 
@@ -111,17 +111,17 @@ docker compose up -d --build
 | `DEPLOY_HOST` | ECS 公网 IP（可选，有则自动 SSH 部署） |
 | `DEPLOY_USER` | SSH 用户，如 `root` |
 | `DEPLOY_SSH_KEY` | 私钥全文 |
-| `DEPLOY_PATH` | 服务器项目目录，如 `/opt/jijin` |
+| `DEPLOY_PATH` | 服务器 git 仓库目录，如 `/opt/jijin` |
 
 若要流水线自动 SSH 部署，再在 **Settings → Variables** 增加：`ENABLE_ECS_DEPLOY=true`。
 
-服务器首次准备：
+服务器首次准备（`DEPLOY_PATH` 必须是本仓库的 git clone）：
 
 ```bash
-mkdir -p /opt/jijin && cd /opt/jijin
-# 放 docker-compose.prod.yml 和填好的 .env
-# 若 GHCR 包是私有：先 docker login ghcr.io
-docker compose -f docker-compose.prod.yml up -d
+git clone https://github.com/Ben-artist/ji.git /opt/jijin
+cd /opt/jijin
+# 填写 .env（含 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 等）
+docker compose up -d --build
 ```
 
 ### 不写 compose 的等价命令
