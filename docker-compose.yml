@@ -7,6 +7,7 @@ services:
         # 构建期注入（会打进浏览器包）；改完需重新 build
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/jiJin}
     image: jijin:latest
     container_name: jijin
     restart: unless-stopped

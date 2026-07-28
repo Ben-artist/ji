@@ -25,6 +25,7 @@ import {
   recognizePortfolioImages,
   runPortfolioAnalysis,
 } from '#/lib/portfolio/analyze.functions'
+import { withAppBase } from '#/lib/app-base'
 import { checkIsAdmin } from '#/lib/supabase/admin.functions'
 import type { ChatMessage, Holding, PortfolioAnalysis } from '#/lib/portfolio/types'
 
@@ -198,7 +199,7 @@ function AnalyzePage() {
     setChatThinking(true)
 
     try {
-      const res = await fetch('/api/portfolio-chat', {
+      const res = await fetch(withAppBase('/api/portfolio-chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

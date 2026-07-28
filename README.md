@@ -80,12 +80,31 @@ sudo certbot --nginx -d 你的域名.com
 
 4. 若只想本机反代，把 `docker-compose.yml` 里 ports 改成 `127.0.0.1:3000:3000` 后重启。
 
-### 5. 改 Supabase 回调（必做）
+### Nginx 挂到 `域名/jiJin/`
 
-Authentication → URL Configuration：
+应用默认 `VITE_BASE_PATH=/jiJin`。服务器 `.env` 加：
 
-- **Site URL**：`https://你的域名`（或 `http://IP:3000`）
-- **Redirect URLs**：加上 `https://你的域名/auth/callback`
+```bash
+VITE_BASE_PATH=/jiJin
+HOST_PORT=5000
+```
+
+重建：
+
+```bash
+docker compose up -d --build
+```
+
+Nginx 使用仓库内 `deploy/nginx-jijin-location.conf`（**`proxy_pass` 不要加尾斜杠**），然后：
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+访问：`https://你的域名/jiJin/`  
+直连端口：`http://公网IP:5000/jiJin/`
+
+Supabase Redirect 改为：`https://你的域名/jiJin/auth/callback`
 
 ### 6. 常用命令
 

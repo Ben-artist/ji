@@ -7,6 +7,7 @@ import { Label } from '#/components/ui/label'
 import { stashInviteCode, useAuth } from '#/components/auth/AuthProvider'
 import { getBrowserSupabase } from '#/lib/supabase/browser'
 import { validateInvite } from '#/lib/supabase/auth.functions'
+import { withAppBase } from '#/lib/app-base'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -41,7 +42,7 @@ function LoginPage() {
       await validateInvite({ data: { inviteCode: inviteCode.trim() } })
       stashInviteCode(inviteCode.trim())
 
-      const redirectTo = `${window.location.origin}/auth/callback`
+      const redirectTo = `${window.location.origin}${withAppBase('/auth/callback')}`
       const { error: otpError } = await getBrowserSupabase().auth.signInWithOtp({
         email: email.trim(),
         options: {
