@@ -3,6 +3,7 @@ import type {
   AssetClass,
   Holding,
   PortfolioAnalysis,
+  RebalanceAction,
   ScoreMetric,
   SectorDetail,
   SectorOverlapItem,
@@ -376,6 +377,151 @@ export function buildSuggestions(
 }
 
 /**
+ * 生成加减仓方向：只到板块 / 大类，不点名买卖具体基金。
+ * @param holdings 持仓
+ * @param allocation 大类
+ * @param overlaps 重叠
+ * @param sectorDetails 板块细分
+ * @returns 调仓方向列表
+ */
+export function buildRebalanceActions(
+  holdings: Holding[],
+  allocation: AssetAllocationItem[],
+  overlaps: SectorOverlapItem[],
+  sectorDetails: SectorDetail[],
+): RebalanceAction[] {
+  const actions: RebalanceAction[] = []
+  const equity = allocation.find((a) => a.assetClass === '股票')?.weight ?? 0
+  const bond = allocation.find((a) => a.assetClass === '债券')?.weight ?? 0
+
+  const top = overlaps[0]
+  if (top && top.portfolioWeight >= 28) {
+    const hint =
+      top.portfolioWeight >= 40
+        ? '建议逐步降至 25% 附近'
+        : '建议逐步降至 20%–25% 附近'
+    actions.push({
+      id: `reduce-sector-${top.sector}`,
+      direction: 'reduce',
+      target: top.sector,
+      kind: 'sector',
+      currentWeight: top.portfolioWeight,
+      targetHint: hint,
+      reason: `该方向约占组合 ${top.portfolioWeight}%，且有 ${top.fundCount} 只基金共同暴露。优先核对相关主题基金是否重复押注，而不是一次性清仓。`,
+      priority: top.portfolioWeight >= 40 ? 'high' : 'medium',
+    })
+  }
+
+  // 第二重板块若也偏高，再给一条减配
+  const second = overlaps[1]
+  if (
+    second &&
+    second.portfolioWeight >= 22 &&
+    (!top || second.sector !== top.sector)
+  ) {
+    actions.push({
+      id: `reduce-sector-${second.sector}`,
+      direction: 'reduce',
+      target: second.sector,
+      kind: 'sector',
+      currentWeight: second.portfolioWeight,
+      targetHint: '可考虑略降至 15%–20% 附近',
+      reason: `次高暴露板块约占 ${second.portfolioWeight}%。若与第一重赛道同属成长/周期风格，组合波动会叠加。`,
+      priority: 'medium',
+    })
+  }
+
+  const topTheme = sectorDetails
+    .flatMap((s) =>
+      s.themes.map((t) => ({
+        sector: s.sector,
+        ...t,
+      })),
+    )
+    .sort((a, b) => b.portfolioWeight - a.portfolioWeight)[0]
+
+  if (topTheme && topTheme.portfolioWeight >= 8) {
+    actions.push({
+      id: `reduce-theme-${topTheme.name}`,
+      direction: 'reduce',
+      target: `${topTheme.sector} · ${topTheme.name}`,
+      kind: 'sector',
+      currentWeight: topTheme.portfolioWeight,
+      targetHint: '建议关注是否过度集中于同一子赛道',
+      reason: `「${topTheme.name}」约占组合 ${topTheme.portfolioWeight}%（在「${topTheme.sector}」内约 ${topTheme.sectorWeight}%）。景气回落时回撤往往更集中。`,
+      priority: topTheme.portfolioWeight >= 12 ? 'high' : 'medium',
+    })
+  }
+
+  if (equity >= 80) {
+    actions.push({
+      id: 'reduce-equity',
+      direction: 'reduce',
+      target: '股票（权益）',
+      kind: 'asset',
+      currentWeight: Number(equity.toFixed(1)),
+      targetHint: '可考虑将权益仓位降到 70% 附近',
+      reason: `股票仓位约 ${equity.toFixed(0)}%，对单一权益周期更敏感。可用纯债/短债替换部分高波动权益暴露。`,
+      priority: 'high',
+    })
+  }
+
+  if (bond < 10 && equity >= 55) {
+    actions.push({
+      id: 'increase-bond',
+      direction: 'increase',
+      target: '债券',
+      kind: 'asset',
+      currentWeight: Number(bond.toFixed(1)),
+      targetHint: '可考虑增配至 10%–20%',
+      reason: `当前债券约 ${bond.toFixed(0)}%，缓冲偏薄。增配利率债或短债，优先补「稳」而不是追收益。`,
+      priority: equity >= 75 ? 'high' : 'medium',
+    })
+  }
+
+  // 权益偏高且前两大板块合计很重时，提示增配「相对分散」的宽基方向（仍不点名基金）
+  const topTwoWeight =
+    (overlaps[0]?.portfolioWeight ?? 0) + (overlaps[1]?.portfolioWeight ?? 0)
+  if (equity >= 60 && topTwoWeight >= 45 && overlaps.length >= 2) {
+    actions.push({
+      id: 'increase-diversify',
+      direction: 'increase',
+      target: '宽基 / 低相关板块',
+      kind: 'sector',
+      currentWeight: Number(topTwoWeight.toFixed(1)),
+      targetHint: '用宽基或低相关方向稀释前两大赛道',
+      reason: `前两大板块合计约 ${topTwoWeight.toFixed(0)}%。增配时优先选与现有赛道相关度更低的方向，避免「换基金不换风格」。`,
+      priority: 'medium',
+    })
+  }
+
+  const heaviest = [...holdings].sort((a, b) => b.weight - a.weight)[0]
+  if (heaviest && heaviest.weight >= 18) {
+    // 不点名单基买卖，引导为「降低单一持仓集中度」
+    actions.push({
+      id: 'reduce-single-holding',
+      direction: 'reduce',
+      target: '单一基金集中度',
+      kind: 'asset',
+      currentWeight: Number(heaviest.weight.toFixed(2)),
+      targetHint: '建议单基占比控制在 15% 以内',
+      reason: `当前最高单基约占 ${heaviest.weight.toFixed(1)}%（${heaviest.name}）。优先核对是否超额集中，而不是根据短期涨跌追买追卖。`,
+      priority: heaviest.weight >= 25 ? 'high' : 'medium',
+    })
+  }
+
+  const priorityRank = { high: 0, medium: 1, low: 2 } as const
+  const sorted = [...actions].sort(
+    (a, b) => priorityRank[a.priority] - priorityRank[b.priority],
+  )
+
+  // 每侧最多各保留若干条，避免清单过长
+  const reduce = sorted.filter((a) => a.direction === 'reduce').slice(0, 3)
+  const increase = sorted.filter((a) => a.direction === 'increase').slice(0, 3)
+  return [...reduce, ...increase]
+}
+
+/**
  * 格式化金额。
  * @param yuan 元
  * @returns 中文金额文案
@@ -388,11 +534,12 @@ export function formatYuan(yuan: number): string {
 }
 
 /**
- * 生成分析总结。
+ * 生成分析总结：先讲结构与问题，再给下一步看哪里；少提裸分数。
  * @param allocation 大类
  * @param overlaps 重叠
  * @param scores 评分
  * @param sectorDetails 细分
+ * @param rebalanceActions 调仓方向
  * @returns 总结文案
  */
 export function buildSummary(
@@ -400,20 +547,66 @@ export function buildSummary(
   overlaps: SectorOverlapItem[],
   scores: ScoreMetric[],
   sectorDetails: SectorDetail[],
+  rebalanceActions: RebalanceAction[] = [],
 ): string {
   const equity = allocation.find((a) => a.assetClass === '股票')?.weight ?? 0
-  const topSectors = overlaps
-    .slice(0, 3)
-    .map((o) => o.sector)
-    .join('、')
+  const bond = allocation.find((a) => a.assetClass === '债券')?.weight ?? 0
+  const top = overlaps[0]
+  const second = overlaps[1]
   const health = scores.find((s) => s.key === 'health')
+  const concentration = scores.find((s) => s.key === 'concentration')
+  const risk = scores.find((s) => s.key === 'risk')
   const topDetail = sectorDetails[0]
-  const themeHint = topDetail?.themes
-    .slice(0, 3)
-    .map((t) => `${t.name} ${t.portfolioWeight}%`)
-    .join('、')
+  const topTheme = topDetail?.themes[0]
 
-  return `您的持仓以${topSectors || '多元板块'}方向为主，股票仓位约 ${equity.toFixed(0)}%。健康度 ${health?.score ?? '-'}（${health?.level ?? ''}）。${themeHint && topDetail ? `「${topDetail.sector}」细分中 ${themeHint}。` : ''}建议结合板块下钻核对赛道集中度。`
+  const structureParts: string[] = []
+  if (top) {
+    const sectorLine = second
+      ? `${top.sector}（约 ${top.portfolioWeight}%）、${second.sector}（约 ${second.portfolioWeight}%）`
+      : `${top.sector}（约 ${top.portfolioWeight}%）`
+    structureParts.push(`持仓主要压在 ${sectorLine}`)
+  } else {
+    structureParts.push('持仓板块较分散')
+  }
+  structureParts.push(`股票仓位约 ${equity.toFixed(0)}%`)
+  if (bond < 10 && equity >= 55) {
+    structureParts.push(`债券仅约 ${bond.toFixed(0)}%`)
+  }
+
+  const issueParts: string[] = []
+  if (top && top.portfolioWeight >= 28) {
+    issueParts.push(`「${top.sector}」暴露偏重`)
+  }
+  if (topTheme && topTheme.portfolioWeight >= 8) {
+    issueParts.push(
+      `「${topTheme.name}」子赛道约占组合 ${topTheme.portfolioWeight}%`,
+    )
+  }
+  if (risk && risk.score >= 75) {
+    issueParts.push('波动风险偏高')
+  } else if (concentration && concentration.score < 55) {
+    issueParts.push('集中度需要留意')
+  } else if (health && health.score < 55) {
+    issueParts.push('整体结构偏紧')
+  }
+
+  const reduce = rebalanceActions.find((a) => a.direction === 'reduce')
+  const increase = rebalanceActions.find((a) => a.direction === 'increase')
+  let nextStep = '可先点选下方板块看细分，再对照调仓方向核对。'
+  if (reduce && increase) {
+    nextStep = `下一步优先看：减配「${reduce.target}」，增配「${increase.target}」（详见下方调仓方向）。`
+  } else if (reduce) {
+    nextStep = `下一步优先核对是否减配「${reduce.target}」（详见下方调仓方向）。`
+  } else if (increase) {
+    nextStep = `下一步可关注增配「${increase.target}」（详见下方调仓方向）。`
+  }
+
+  const line1 = `${structureParts.join('，')}。`
+  const line2 =
+    issueParts.length > 0
+      ? `主要问题：${issueParts.join('；')}。`
+      : '当前结构尚可，无明显过重方向。'
+  return `${line1}${line2}${nextStep}`
 }
 
 /**
@@ -435,7 +628,19 @@ export function analyzePortfolio(holdings: Holding[]): PortfolioAnalysis {
     overlaps,
     sectorDetails,
   )
-  const summary = buildSummary(allocation, overlaps, scores, sectorDetails)
+  const rebalanceActions = buildRebalanceActions(
+    normalized,
+    allocation,
+    overlaps,
+    sectorDetails,
+  )
+  const summary = buildSummary(
+    allocation,
+    overlaps,
+    scores,
+    sectorDetails,
+    rebalanceActions,
+  )
   const equity = allocation.find((a) => a.assetClass === '股票')?.weight ?? 0
 
   return {
@@ -454,6 +659,7 @@ export function analyzePortfolio(holdings: Holding[]): PortfolioAnalysis {
     overlapLevel,
     overlapInsight,
     suggestions,
+    rebalanceActions,
     benchmark: {
       name: '沪深300',
       note: '演示对比：相对宽基的权益仓位与赛道偏离（非真实跟踪误差）。',
@@ -534,7 +740,21 @@ export function answerPortfolioChat(
       .join('，')
     return `总市值约 ${formatYuan(analysis.totalAmount)}。大类：${alloc}。股票约 ${equity.toFixed(0)}%。`
   }
-  if (q.includes('建议') || q.includes('怎么调') || q.includes('优化')) {
+  if (
+    q.includes('建议') ||
+    q.includes('怎么调') ||
+    q.includes('优化') ||
+    q.includes('加仓') ||
+    q.includes('减仓') ||
+    q.includes('调仓')
+  ) {
+    if (analysis.rebalanceActions.length > 0) {
+      const lines = analysis.rebalanceActions.map((a, i) => {
+        const dir = a.direction === 'reduce' ? '关注减配' : '关注增配'
+        return `${i + 1}. 【${dir}】${a.target}（当前约 ${a.currentWeight}%）：${a.targetHint}。${a.reason}`
+      })
+      return `${lines.join('\n')}\n\n以上为组合结构诊断方向，不构成对具体基金的买卖建议。`
+    }
     return analysis.suggestions
       .map((s, i) => `${i + 1}. ${s.title}：${s.detail}`)
       .join('\n')

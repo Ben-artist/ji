@@ -103,6 +103,7 @@ export const Route = createFileRoute('/api/portfolio-chat')({
                   themes: s.themes.slice(0, 6),
                 })),
                 suggestions: analysis.suggestions,
+                rebalanceActions: analysis.rebalanceActions,
                 holdings: analysis.holdings.map((h) => ({
                   code: h.code,
                   name: h.name,

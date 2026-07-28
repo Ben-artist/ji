@@ -39,30 +39,30 @@ function severityOf(metric: ScoreMetric): Severity {
 
 const severityStyles: Record<
   Severity,
-  { card: string; score: string; badge: string }
+  { chip: string; badge: string; dot: string }
 > = {
   good: {
-    card: 'border-emerald-500/35 bg-[color-mix(in_oklab,var(--surface-strong)_82%,#10b981_18%)]',
-    score: 'text-emerald-600 dark:text-emerald-400',
+    chip: 'border-emerald-500/30 bg-[color-mix(in_oklab,var(--surface-strong)_90%,#10b981_10%)]',
     badge:
       'border-transparent bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+    dot: 'bg-emerald-500',
   },
   warn: {
-    card: 'border-amber-500/35 bg-[color-mix(in_oklab,var(--surface-strong)_82%,#f59e0b_18%)]',
-    score: 'text-amber-600 dark:text-amber-400',
+    chip: 'border-amber-500/30 bg-[color-mix(in_oklab,var(--surface-strong)_90%,#f59e0b_10%)]',
     badge:
       'border-transparent bg-amber-500/15 text-amber-800 dark:text-amber-300',
+    dot: 'bg-amber-500',
   },
   bad: {
-    card: 'border-rose-500/35 bg-[color-mix(in_oklab,var(--surface-strong)_82%,#f43f5e_18%)]',
-    score: 'text-rose-600 dark:text-rose-400',
+    chip: 'border-rose-500/30 bg-[color-mix(in_oklab,var(--surface-strong)_90%,#f43f5e_10%)]',
     badge:
       'border-transparent bg-rose-500/15 text-rose-700 dark:text-rose-300',
+    dot: 'bg-rose-500',
   },
 }
 
 /**
- * 持仓分析概览：三项主评分 + AI 总结。
+ * 组合体检：结论优先，三项状态作辅助参考。
  */
 export function ScoreOverview({
   scores,
@@ -80,40 +80,60 @@ export function ScoreOverview({
     <section className="island-shell rounded-2xl p-5 sm:p-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
         <h2 className="m-0 text-lg font-semibold text-[var(--sea-ink)]">
-          健康度 · 集中度 · 风险
+          组合体检
         </h2>
         <p className="m-0 text-xs text-[var(--sea-ink-soft)]">更新于 {time}</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {scores.map((metric) => {
-          const severity = severityOf(metric)
-          const styles = severityStyles[severity]
-          return (
-            <article
-              key={metric.key}
-              className={`rounded-xl border p-4 ${styles.card}`}
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="m-0 text-sm text-[var(--sea-ink-soft)]">
-                  {metric.label}
-                </p>
+      <div className="rounded-xl border border-[rgba(79,184,178,0.35)] bg-[rgba(79,184,178,0.1)] p-4 sm:p-5">
+        <h3 className="mt-0 mb-2 text-sm font-semibold text-[var(--sea-ink)]">
+          一句话结论
+        </h3>
+        <p className="m-0 text-[15px] leading-relaxed text-[var(--sea-ink)] sm:text-base">
+          {summary}
+        </p>
+      </div>
+
+      <div className="mt-4">
+        <p className="mb-2 mt-0 text-xs text-[var(--sea-ink-soft)]">
+          三项参考状态（点 i 看依据，分数仅作辅助）
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {scores.map((metric) => {
+            const severity = severityOf(metric)
+            const styles = severityStyles[severity]
+            return (
+              <div
+                key={metric.key}
+                className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm ${styles.chip}`}
+              >
+                <span
+                  className={`size-1.5 shrink-0 rounded-full ${styles.dot}`}
+                  aria-hidden
+                />
+                <span className="text-[var(--sea-ink)]">{metric.label}</span>
+                <Badge className={`font-normal ${styles.badge}`}>
+                  {metric.level}
+                </Badge>
+                <span className="tabular-nums text-xs text-[var(--sea-ink-soft)]">
+                  {metric.score}
+                </span>
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="text-[var(--sea-ink-soft)]"
+                      className="size-6 text-[var(--sea-ink-soft)]"
                       aria-label={`查看${metric.label}说明`}
                     >
-                      <Info className="size-4" />
+                      <Info className="size-3.5" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>
-                        {metric.label}：{metric.score}
+                        {metric.label}：{metric.score}（{metric.level}）
                       </DialogTitle>
                       <DialogDescription>{metric.explanation}</DialogDescription>
                     </DialogHeader>
@@ -125,24 +145,9 @@ export function ScoreOverview({
                   </DialogContent>
                 </Dialog>
               </div>
-              <p
-                className={`m-0 text-3xl font-bold tracking-tight ${styles.score}`}
-              >
-                {metric.score}
-              </p>
-              <Badge className={`mt-2 ${styles.badge}`}>{metric.level}</Badge>
-            </article>
-          )
-        })}
-      </div>
-
-      <div className="mt-4 rounded-xl border border-[var(--line)] bg-[rgba(79,184,178,0.08)] p-4">
-        <h3 className="mt-0 mb-2 text-sm font-semibold text-[var(--sea-ink)]">
-          分析总结
-        </h3>
-        <p className="m-0 text-sm leading-relaxed text-[var(--sea-ink)]">
-          {summary}
-        </p>
+            )
+          })}
+        </div>
       </div>
     </section>
   )

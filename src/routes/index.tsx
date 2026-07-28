@@ -10,6 +10,7 @@ import {
   ScoreOverviewLoading,
 } from '#/components/portfolio/ScoreOverview'
 import { SuggestionsChat } from '#/components/portfolio/SuggestionsChat'
+import { RebalanceGuide } from '#/components/portfolio/RebalanceGuide'
 import { UploadPanel } from '#/components/portfolio/UploadPanel'
 import { Button } from '#/components/ui/button'
 import {
@@ -472,6 +473,8 @@ function AnalyzePage() {
             overlapLevel={analysis.overlapLevel}
             overlapInsight={analysis.overlapInsight}
           />
+
+          <RebalanceGuide actions={analysis.rebalanceActions ?? []} />
 
           <SuggestionsChat
             messages={messages}

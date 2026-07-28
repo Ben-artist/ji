@@ -79,6 +79,24 @@ export interface Suggestion {
   priority: 'high' | 'medium' | 'low'
 }
 
+/** 调仓方向：减配 / 增配（板块或大类，不点名买卖具体基金） */
+export type RebalanceDirection = 'reduce' | 'increase'
+
+export interface RebalanceAction {
+  id: string
+  direction: RebalanceDirection
+  /** 板块名或大类名 */
+  target: string
+  /** 目标类型，便于展示 */
+  kind: 'sector' | 'asset'
+  /** 当前组合占比 % */
+  currentWeight: number
+  /** 方向提示，如「降至 20% 附近」 */
+  targetHint: string
+  reason: string
+  priority: 'high' | 'medium' | 'low'
+}
+
 /** 基准对比 */
 export interface BenchmarkCompare {
   name: string
@@ -109,6 +127,8 @@ export interface PortfolioAnalysis {
   overlapLevel: string
   overlapInsight: string
   suggestions: Suggestion[]
+  /** 加减仓方向（板块 / 大类） */
+  rebalanceActions: RebalanceAction[]
   benchmark: BenchmarkCompare
 }
 

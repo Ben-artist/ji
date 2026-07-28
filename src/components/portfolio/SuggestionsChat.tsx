@@ -17,7 +17,7 @@ interface SuggestionsChatProps {
 const hints = [
   '主要板块的子赛道怎么拆？',
   '我的整体风险偏高吗？',
-  '怎么降低集中度？',
+  '该加仓还是减仓哪边？',
 ]
 
 /**
