@@ -11,6 +11,7 @@ import Header from '../components/Header'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
 import appCss from '../styles.css?url'
+import { withAppBase } from '../lib/app-base'
 
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -41,7 +42,17 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       },
       {
         rel: 'icon',
-        href: 'data:,',
+        href: withAppBase('/favicon.ico'),
+        sizes: 'any',
+      },
+      {
+        rel: 'icon',
+        type: 'image/svg+xml',
+        href: withAppBase('/favicon.svg'),
+      },
+      {
+        rel: 'apple-touch-icon',
+        href: withAppBase('/apple-touch-icon.png'),
       },
     ],
   }),

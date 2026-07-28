@@ -101,6 +101,8 @@ Nginx 使用仓库内 `deploy/nginx-jijin-location.conf`（**`proxy_pass` 不要
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+若本地流式正常、经域名访问却整段才出字：多半是 Nginx 缓冲了 SSE。确认站点配置里已包含该文件中的 `proxy_buffering off` / `gzip off`（尤其是 `/jiJin/api/portfolio-chat`），再 `reload`。直连 `IP:5000` 可绕过 Nginx 对比验证。
+
 访问：`https://你的域名/jiJin/`  
 直连端口：`http://公网IP:5000/jiJin/`
 

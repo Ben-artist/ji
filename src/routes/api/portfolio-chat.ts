@@ -7,7 +7,6 @@ import {
   analyzePortfolio,
   answerPortfolioChat,
 } from '#/lib/portfolio/analyze'
-import { enrichHoldingsExposureWithAi } from '#/lib/portfolio/enrich-exposure'
 import type { Holding } from '#/lib/portfolio/types'
 import { consumeQuota } from '#/lib/supabase/server'
 
@@ -68,6 +67,7 @@ export const Route = createFileRoute('/api/portfolio-chat')({
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             try {
+              // 先推状态；聊天不再重跑耗时 enrich，尽快进入流式
               sendEvent(controller, encoder, {
                 type: 'status',
                 status: 'thinking',
@@ -75,10 +75,8 @@ export const Route = createFileRoute('/api/portfolio-chat')({
 
               await consumeQuota(parsed.accessToken, 1)
 
-              const enriched = await enrichHoldingsExposureWithAi(
-                parsed.holdings as Holding[],
-              )
-              const analysis = analyzePortfolio(enriched)
+              // 持仓在首页分析时已 enrich，对话只做本地重算
+              const analysis = analyzePortfolio(parsed.holdings as Holding[])
 
               const codeMatch = parsed.message.match(/\b(\d{6})\b/)
               let topHoldingsNote = ''
@@ -134,7 +132,10 @@ export const Route = createFileRoute('/api/portfolio-chat')({
                     },
                   ],
                   (delta) => {
-                    sendEvent(controller, encoder, { type: 'delta', text: delta })
+                    sendEvent(controller, encoder, {
+                      type: 'delta',
+                      text: delta,
+                    })
                   },
                 )
               } catch {
@@ -166,6 +167,8 @@ export const Route = createFileRoute('/api/portfolio-chat')({
             'Content-Type': 'text/event-stream; charset=utf-8',
             'Cache-Control': 'no-cache, no-transform',
             Connection: 'keep-alive',
+            // 告诉 Nginx 不要缓冲 SSE，否则会整段攒完再吐
+            'X-Accel-Buffering': 'no',
           },
         })
       },
