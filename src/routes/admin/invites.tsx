@@ -15,9 +15,9 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import {
   checkIsAdmin,
-  deactivateInviteCode,
   generateInviteCodes,
   listInviteCodes,
+  setInviteCodeActive,
   syncInviteUsedCount,
   updateInviteCode,
   type InviteCodeRow,
@@ -28,12 +28,15 @@ export const Route = createFileRoute('/admin/invites')({
 })
 
 /**
- * 邀请码管理：批量生成一人一码、复制、停用。
+ * 邀请码管理：批量生成一人一码、复制、启停。
  */
 function AdminInvitesPage() {
   const { ready, accessToken, user } = useAuth()
   const [isAdmin, setIsAdmin] = useState(false)
-  const [loading, setLoading] = useState(true)
+  /** 仅首次进入页面时的整页 loading */
+  const [initialLoading, setInitialLoading] = useState(true)
+  /** 刷新 / 保存后只转表格区，不卸掉整页 */
+  const [tableRefreshing, setTableRefreshing] = useState(false)
   const [rows, setRows] = useState<InviteCodeRow[]>([])
   const [count, setCount] = useState('5')
   const [quotaLimit, setQuotaLimit] = useState('10')
@@ -48,34 +51,43 @@ function AdminInvitesPage() {
   const [editUsedCount, setEditUsedCount] = useState('')
   const [editSyncProfile, setEditSyncProfile] = useState(true)
 
-  const load = useCallback(async () => {
-    if (!accessToken) return
-    setLoading(true)
-    setError('')
-    try {
-      const admin = await checkIsAdmin({ data: { accessToken } })
-      setIsAdmin(admin.isAdmin)
-      if (!admin.isAdmin) {
-        setRows([])
-        return
+  /**
+   * 拉取邀请码列表。
+   * @param mode initial=整页加载；table=仅表格刷新
+   */
+  const load = useCallback(
+    async (mode: 'initial' | 'table' = 'table') => {
+      if (!accessToken) return
+      if (mode === 'initial') setInitialLoading(true)
+      else setTableRefreshing(true)
+      setError('')
+      try {
+        const admin = await checkIsAdmin({ data: { accessToken } })
+        setIsAdmin(admin.isAdmin)
+        if (!admin.isAdmin) {
+          setRows([])
+          return
+        }
+        const list = await listInviteCodes({ data: { accessToken } })
+        setRows(list)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '加载失败')
+      } finally {
+        if (mode === 'initial') setInitialLoading(false)
+        else setTableRefreshing(false)
       }
-      const list = await listInviteCodes({ data: { accessToken } })
-      setRows(list)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [accessToken])
+    },
+    [accessToken],
+  )
 
   useEffect(() => {
     if (!ready) return
     if (!accessToken) {
-      setLoading(false)
+      setInitialLoading(false)
       setIsAdmin(false)
       return
     }
-    void load()
+    void load('initial')
   }, [ready, accessToken, load])
 
   /**
@@ -97,7 +109,7 @@ function AdminInvitesPage() {
       })
       setLastGenerated(result.codes)
       setMessage(`已生成 ${result.codes.length} 个邀请码`)
-      await load()
+      await load('table')
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败')
     } finally {
@@ -139,9 +151,29 @@ function AdminInvitesPage() {
       })
       setMessage(`已更新 ${editRow.code}`)
       setEditRow(null)
-      await load()
+      await load('table')
     } catch (err) {
       setError(err instanceof Error ? err.message : '保存失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * 启用或停用邀请码，并只刷新表格。
+   * @param code 邀请码
+   * @param active 目标状态
+   */
+  async function handleSetActive(code: string, active: boolean) {
+    if (!accessToken) return
+    setBusy(true)
+    setError('')
+    try {
+      await setInviteCodeActive({ data: { accessToken, code, active } })
+      setMessage(active ? `已启用 ${code}` : `已停用 ${code}`)
+      await load('table')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '操作失败')
     } finally {
       setBusy(false)
     }
@@ -160,7 +192,7 @@ function AdminInvitesPage() {
     }
   }
 
-  if (!ready || loading) {
+  if (!ready || initialLoading) {
     return (
       <main className="page-wrap px-4 py-16 text-center text-[var(--sea-ink-soft)]">
         加载中…
@@ -270,11 +302,19 @@ function AdminInvitesPage() {
           <h2 className="m-0 text-lg font-semibold text-[var(--sea-ink)]">
             全部邀请码
           </h2>
-          <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-            刷新
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={tableRefreshing || busy}
+            onClick={() => void load('table')}
+          >
+            {tableRefreshing ? '刷新中…' : '刷新'}
           </Button>
         </div>
-        <div className="overflow-x-auto">
+        <div
+          className={`overflow-x-auto transition-opacity ${tableRefreshing ? 'opacity-60' : ''}`}
+        >
           <table className="w-full min-w-[640px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--line)] text-[var(--sea-ink-soft)]">
@@ -342,11 +382,12 @@ function AdminInvitesPage() {
                           type="button"
                           size="xs"
                           variant="ghost"
+                          disabled={busy || tableRefreshing}
                           onClick={() => {
                             if (!accessToken) return
                             void syncInviteUsedCount({
                               data: { accessToken, code: row.code },
-                            }).then(() => load())
+                            }).then(() => load('table'))
                           }}
                         >
                           同步人数
@@ -357,23 +398,29 @@ function AdminInvitesPage() {
                           type="button"
                           size="xs"
                           variant="ghost"
-                          onClick={() => {
-                            if (!accessToken) return
-                            void deactivateInviteCode({
-                              data: { accessToken, code: row.code },
-                            }).then(() => load())
-                          }}
+                          disabled={busy || tableRefreshing}
+                          onClick={() => void handleSetActive(row.code, false)}
                         >
                           停用
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          disabled={busy || tableRefreshing}
+                          onClick={() => void handleSetActive(row.code, true)}
+                        >
+                          启用
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {rows.length === 0 ? (
+          {rows.length === 0 && !tableRefreshing ? (
             <p className="m-0 pt-4 text-sm text-[var(--sea-ink-soft)]">暂无邀请码</p>
           ) : null}
         </div>

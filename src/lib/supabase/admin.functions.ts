@@ -181,7 +181,31 @@ export const generateInviteCodes = createServerFn({ method: 'POST' })
   })
 
 /**
- * 停用邀请码。
+ * 设置邀请码启用/停用。
+ */
+export const setInviteCodeActive = createServerFn({ method: 'POST' })
+  .validator((data: unknown) =>
+    z
+      .object({
+        accessToken: z.string().min(20),
+        code: z.string().min(4),
+        active: z.boolean(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin(data.accessToken)
+    const db = createServiceSupabase()
+    const { error } = await db
+      .from('invite_codes')
+      .update({ active: data.active })
+      .eq('code', data.code)
+    if (error) throw new Error(error.message)
+    return { ok: true as const }
+  })
+
+/**
+ * 停用邀请码（兼容旧调用）。
  */
 export const deactivateInviteCode = createServerFn({ method: 'POST' })
   .validator((data: unknown) =>
