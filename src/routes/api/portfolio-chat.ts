@@ -2,7 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { qwenChatStream } from '#/lib/ai/dashscope'
-import { fetchFundTopHoldings } from '#/lib/fund/tiantian'
+import {
+  buildFundChatEnrichment,
+  PORTFOLIO_CHAT_SYSTEM_PROMPT,
+} from '#/lib/portfolio/chat-enrichment'
 import {
   analyzePortfolio,
   answerPortfolioChat,
@@ -67,7 +70,6 @@ export const Route = createFileRoute('/api/portfolio-chat')({
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
             try {
-              // 先推状态；聊天不再重跑耗时 enrich，尽快进入流式
               sendEvent(controller, encoder, {
                 type: 'status',
                 status: 'thinking',
@@ -75,23 +77,12 @@ export const Route = createFileRoute('/api/portfolio-chat')({
 
               await consumeQuota(parsed.accessToken, 1)
 
-              // 持仓在首页分析时已 enrich，对话只做本地重算
-              const analysis = analyzePortfolio(parsed.holdings as Holding[])
-
-              const codeMatch = parsed.message.match(/\b(\d{6})\b/)
-              let topHoldingsNote = ''
-              if (codeMatch) {
-                try {
-                  const top = await fetchFundTopHoldings(codeMatch[1])
-                  if (top.stocks.length) {
-                    topHoldingsNote = `\n基金 ${codeMatch[1]} 十大重仓（报告期 ${top.reportDate ?? '未知'}）：${top.stocks
-                      .map((s) => `${s.name}(${s.code}) ${s.weight}%`)
-                      .join('；')}`
-                  }
-                } catch {
-                  topHoldingsNote = `\n未能拉取基金 ${codeMatch[1]} 的重仓数据。`
-                }
-              }
+              const holdings = parsed.holdings as Holding[]
+              const analysis = analyzePortfolio(holdings)
+              const enrichment = await buildFundChatEnrichment(
+                parsed.message,
+                holdings,
+              )
 
               const context = {
                 summary: analysis.summary,
@@ -124,12 +115,11 @@ export const Route = createFileRoute('/api/portfolio-chat')({
                   [
                     {
                       role: 'system',
-                      content:
-                        '你是基金持仓分析助手「基今」。根据给定 JSON 上下文回答用户问题，简洁、可执行，不要编造未提供的数据。可用 Markdown。结尾可提醒：内容仅供参考，不构成投资建议。',
+                      content: PORTFOLIO_CHAT_SYSTEM_PROMPT,
                     },
                     {
                       role: 'user',
-                      content: `持仓分析上下文：\n${JSON.stringify(context)}\n${topHoldingsNote}\n\n用户问题：${parsed.message}`,
+                      content: `持仓分析上下文：\n${JSON.stringify(context)}${enrichment}\n\n用户问题：${parsed.message}`,
                     },
                   ],
                   (delta) => {
@@ -140,7 +130,7 @@ export const Route = createFileRoute('/api/portfolio-chat')({
                   },
                 )
               } catch {
-                const fallback = `${answerPortfolioChat(parsed.message, analysis)}${topHoldingsNote}`
+                const fallback = `${answerPortfolioChat(parsed.message, analysis)}${enrichment}`
                 sendEvent(controller, encoder, {
                   type: 'delta',
                   text: fallback,
@@ -168,7 +158,6 @@ export const Route = createFileRoute('/api/portfolio-chat')({
             'Content-Type': 'text/event-stream; charset=utf-8',
             'Cache-Control': 'no-cache, no-transform',
             Connection: 'keep-alive',
-            // 告诉 Nginx 不要缓冲 SSE，否则会整段攒完再吐
             'X-Accel-Buffering': 'no',
           },
         })

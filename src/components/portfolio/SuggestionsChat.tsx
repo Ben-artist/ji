@@ -15,8 +15,8 @@ interface SuggestionsChatProps {
 }
 
 const hints = [
-  '主要板块的子赛道怎么拆？',
-  '我的整体风险偏高吗？',
+  '这只基金主要重仓什么？',
+  '重仓股公司是做什么的？',
   '该加仓还是减仓哪边？',
 ]
 
@@ -130,7 +130,7 @@ export function SuggestionsChat({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             disabled={isSending}
-            placeholder="问板块细分、风险、调仓思路，Enter 发送"
+            placeholder="问持仓、基金净值/重仓、公司业务…"
             className="h-10 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

@@ -76,6 +76,57 @@ export async function searchTiantianFunds(
 }
 
 /**
+ * 查询基金概况与最新净值（东财移动端接口）。
+ * @param fundCode 基金代码
+ * @returns 概况；失败返回 null
+ */
+export async function fetchFundBasicInfo(fundCode: string): Promise<{
+  code: string
+  name: string
+  fundType: string
+  nav: number | null
+  dayChangePct: number | null
+  navDate: string | null
+  company: string | null
+  riskLevel: string | null
+} | null> {
+  const code = fundCode.trim()
+  if (!code || code === 'CASH') return null
+  const url = `https://fundmobapi.eastmoney.com/FundMNewApi/FundMNNBasicInformation?FCODE=${encodeURIComponent(code)}&deviceid=Wap&plat=Wap&product=EFund&version=2.0.0`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, Referer: 'https://fund.eastmoney.com/' },
+  })
+  if (!res.ok) throw new Error(`基金概况查询失败 (${res.status})`)
+  const json = (await res.json()) as {
+    Success?: boolean
+    Datas?: {
+      FCODE?: string
+      SHORTNAME?: string
+      FTYPE?: string
+      DWJZ?: string
+      RZDF?: string
+      FSRQ?: string
+      JJGS?: string
+      RISKLEVEL?: string
+    }
+  }
+  if (!json.Success || !json.Datas) return null
+  const d = json.Datas
+  const nav = Number(d.DWJZ)
+  const dayChangePct = Number(d.RZDF)
+  return {
+    code: d.FCODE || code,
+    name: d.SHORTNAME || code,
+    fundType: d.FTYPE || '',
+    nav: Number.isFinite(nav) ? nav : null,
+    dayChangePct: Number.isFinite(dayChangePct) ? dayChangePct : null,
+    navDate: d.FSRQ || null,
+    company: d.JJGS || null,
+    riskLevel: d.RISKLEVEL || null,
+  }
+}
+
+/**
  * 查询基金十大重仓股（季度披露）。
  * @param fundCode 基金代码
  * @returns 重仓列表与报告期
